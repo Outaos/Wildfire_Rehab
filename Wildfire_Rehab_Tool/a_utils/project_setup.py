@@ -24,7 +24,7 @@ class ProjectSetup:
 
     def backup_geodatabase(self):
         fire_code = self.fire_number[:2]
-        input_gdb = fr"\\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{self.fire_year}\Cariboo\{fire_code}\{self.fire_number}\Data\{self.fire_number}_Rehab.gdb"
+        input_gdb = fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{self.fire_year}\Cariboo\{fire_code}\{self.fire_number}\Data\{self.fire_number}_Rehab.gdb"
         output_gdb = os.path.join(self.backup_folder, f"{self.fire_number}_Rehab_BU.gdb")
 
         if not os.path.exists(self.backup_folder):
@@ -94,7 +94,7 @@ class ProjectSetup:
 
     def _construct_gdb_path(self):
         fire_code = self.fire_number[:2]
-        return fr"\\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{self.fire_year}\Cariboo\{fire_code}\{self.fire_number}\Data\{self.fire_number}_Rehab.gdb"
+        return fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{self.fire_year}\Cariboo\{fire_code}\{self.fire_number}\Data\{self.fire_number}_Rehab.gdb"
 
     def _get_or_create_group_layer(self, map_obj, group_name):
         for lyr in map_obj.listLayers():
