@@ -181,8 +181,8 @@ def copy_attributes_based_on_location(lines_to_copy, wildfire_lines):
         field_mapping["LineWidth"] = "LineWidth"
 
     # Check for "ProtValue" field
-    if "Slope" in existing_fields:
-        field_mapping["AvgSlope"] = "Slope"
+    if "AvgSlope" in existing_fields:
+        field_mapping["AvgSlope"] = "AvgSlope"
 
     
 
@@ -388,10 +388,10 @@ def copy_attributes_with_domains(lines_to_copy, wildfire_lines):
             last_vertex = (round(projected_line.lastPoint.X, 3), round(projected_line.lastPoint.Y, 3))
             coords = (first_vertex, last_vertex)
             source_data[coords] = {
-                "RLType1": row[1],
+                "RLType": row[1],
                 "RLType2": row[2],
                 "RLType3": row[3],
-                "FLType1": row[4],
+                "FLType": row[4],
                 "FLType2": row[5],
                 "LineWidth": row[6],
                 "AvgSlope": row[7]
