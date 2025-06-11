@@ -9,11 +9,9 @@ import arcpy
 import sys
 import os
 
-# UNC path that contains all folders like a_project_setup, b_points, etc.
-tool_root_dir = r"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\Scripts\Wildfire_Rehab_Tool"
 
-if tool_root_dir not in sys.path:
-    sys.path.append(tool_root_dir)
+# Add your shared script folder to the module search path
+sys.path.insert(1, r"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\Scripts\Wildfire_Rehab_Tool")
 
 # Wildfire_Rehab_Tool/main.py
 
