@@ -5,6 +5,15 @@ It collects user input parameters from the ArcGIS Pro tool interface,
 initializes the RehabJob controller with those parameters,
 and triggers the full rehab processing pipeline.
 """
+import arcpy
+import sys
+import os
+
+# UNC path that contains all folders like a_project_setup, b_points, etc.
+tool_root_dir = r"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\Scripts\Wildfire_Rehab_Tool"
+
+if tool_root_dir not in sys.path:
+    sys.path.append(tool_root_dir)
 
 # Wildfire_Rehab_Tool/main.py
 
@@ -28,7 +37,7 @@ from c_lines._12_copy_domains_based_on_location_lines import *
 
 # Runner
 from d_runner._13_locate_and_retrive_data_from_map import locate_and_retrieve
-import arcpy
+
 
 def main():
 
