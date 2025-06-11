@@ -35,10 +35,9 @@ def main():
     # Get parameters from user
     fire_year = arcpy.GetParameterAsText(0)
     fire_number = arcpy.GetParameterAsText(1)
-    backup_output_folder = arcpy.GetParameterAsText(2)
-    collected_data_folder = arcpy.GetParameterAsText(3)
-    fire_name = arcpy.GetParameterAsText(4)
-    status = arcpy.GetParameterAsText(5)
+    collected_data_folder = arcpy.GetParameterAsText(2)
+    fire_name = arcpy.GetParameterAsText(3)
+    status = arcpy.GetParameterAsText(4)
 
 
 #################################
@@ -52,10 +51,6 @@ def main():
         arcpy.AddError("Parameter 'fire_number' is missing or invalid.")
         exit()
 
-    if not backup_output_folder:
-        arcpy.AddError("Parameter 'backup_output_folder' is missing or invalid.")
-        exit()
-
     if not collected_data_folder:
         arcpy.AddError("Parameter 'collected_data_folder' is missing or invalid.")
         exit()
@@ -63,10 +58,6 @@ def main():
     if not fire_name:
         arcpy.AddError("Parameter 'fire_name' is missing or invalid.")
         exit()
-
-    #if not contact_person:
-    #    arcpy.AddError("Parameter 'contact_person' is missing or invalid.")
-    #    exit()
 
     if not status:
         arcpy.AddError("Parameter 'status' is missing or invalid.")
