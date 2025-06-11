@@ -11,8 +11,8 @@ def normalize_label(label):
     return re.sub(r'[^a-zA-Z0-9]', '', label).lower()
 
 def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
-    print(" Starting attribute copy with domain mapping...")
-    arcpy.AddMessage(" Starting attribute copy with domain mapping...")
+    print("Step 12. Starting attribute copy with domain mapping...")
+    arcpy.AddMessage("Step 12. Starting attribute copy with domain mapping...")
 
     # DOMAIN MAPPING
     domain_mapping_raw = {
@@ -29,6 +29,8 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
         'Pull Back PB': '6',
         'Recontour RC': '7',
         'Steep Slopes SS': '10',
+
+        'No Treatment Line NT': '11',
         
         # FLType1
         'Completed Line': '11',
@@ -47,6 +49,22 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
         'Road Modified Existing REM': '32',
         'Trail TR': '34',
 
+        'Completed Line': '11',
+        'Containment Control Line': '37',
+        'Contingency Line': '28',
+        'Fire Break Planned or Incomplete': '16',
+        'Line Break Complete': '20',
+        'No Work Zone': '29',
+        'Planned Fire Line': '21',
+        'Planned Secondary Line': '22',
+        'Proposed Machine Line': '24',
+        'Completed Fuel Free Line': '30',
+        'Completed Handline': '10',
+        'Completed Machine Line': '9',
+        'Road Heavily Used': '33',
+        'Road Modified Existing': '32',
+        'Trail': '34',
+
         # Line Width
         '1m': '0',   
         '5m': '1',
@@ -64,11 +82,11 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
     domain_mapping = {normalize_label(k): v for k, v in domain_mapping_raw.items()}
 
     spatial_ref_wildfire_lines = arcpy.Describe(wildfire_lines).spatialReference
-    print(f" Spatial reference: {spatial_ref_wildfire_lines.name}")
-    arcpy.AddMessage(f" Spatial reference: {spatial_ref_wildfire_lines.name}")
+    print(f"Step 12. Spatial reference: {spatial_ref_wildfire_lines.name}")
+    arcpy.AddMessage(f"Step 12. Spatial reference: {spatial_ref_wildfire_lines.name}")
 
-    print(" Reading source features...")
-    arcpy.AddMessage(" Reading source features...")
+    print("Step 12. Reading source features...")
+    arcpy.AddMessage("Step 12. Reading source features...")
 
     # Build dict: (X,Y) -> {"RPtType1": val1, "RPtType2": val2, "RPtType3": val3}
     source_data = {}
@@ -90,11 +108,11 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
                 "AvgSlope": row[7]
             }
 
-    print(f" {len(source_data)} source points indexed.")
-    arcpy.AddMessage(f" {len(source_data)} source points indexed.")
+    print(f"Step 12. {len(source_data)} source points indexed.")
+    arcpy.AddMessage(f"Step 12. {len(source_data)} source points indexed.")
 
-    print(" Updating target features...")
-    arcpy.AddMessage(" Updating target features...")
+    print("Step 12. Updating target features...")
+    arcpy.AddMessage("Step 12. Updating target features...")
 
     updated = 0
     skipped = 0
@@ -116,11 +134,11 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
                         if mapped_val:
                             row[i + 1] = mapped_val
                             changed = True
-                            print(f" {field} updated from '{source_val}' -> '{mapped_val}'")
-                            arcpy.AddMessage(f" {field} updated from '{source_val}' -> '{mapped_val}'")
+                            print(f"Step 12. {field} updated from '{source_val}' -> '{mapped_val}'")
+                            arcpy.AddMessage(f"Step 12. {field} updated from '{source_val}' -> '{mapped_val}'")
                         else:
-                            print(f" No domain match for {field}: '{source_val}'")
-                            arcpy.AddWarning(f" No domain match for {field}: '{source_val}'")
+                            print(f"Step 12. No domain match for {field}: '{source_val}'")
+                            arcpy.AddWarning(f"Step 12. No domain match for {field}: '{source_val}'")
                             skipped += 1
                 if changed:
                     cursor.updateRow(row)
@@ -128,9 +146,9 @@ def copy_attributes_with_domains_lines(lines_to_copy, wildfire_lines):
             else:
                 skipped += 1
 
-    print(f" {updated} rows updated.")
-    print(f" {skipped} rows skipped.")
-    arcpy.AddMessage(f" {updated} rows updated.")
-    arcpy.AddWarning(f" {skipped} rows skipped.")
-    print(" Done.")
-    arcpy.AddMessage(" Done.")
+    print(f"Step 12. {updated} rows updated.")
+    print(f"Step 12. {skipped} rows skipped.")
+    arcpy.AddMessage(f"Step 12. {updated} rows updated.")
+    arcpy.AddWarning(f"Step 12. {skipped} rows skipped.")
+    print("Step 12. Done.")
+    arcpy.AddMessage("Step 12. Done.")

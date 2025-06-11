@@ -12,8 +12,8 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
     """
     Copies attributes from 'lines_to_copy' into 'wildfire_lines' based on matching line endpoints.
     """
-    arcpy.AddMessage(" Starting attribute copy process...")
-    print(" Starting attribute copy process...")
+    arcpy.AddMessage("Step 11. Starting attribute copy process...")
+    print("Step 11. Starting attribute copy process...")
     # Access the current project and active map
     aprx = arcpy.mp.ArcGISProject("CURRENT")
     map_obj = aprx.activeMap
@@ -29,39 +29,39 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
         conn_info_update = conn_props_update['connection_info']
         if 'database' in conn_info_update:
             workspace_update = conn_info_update['database']
-            arcpy.AddMessage(f"Workspace from connection_info (wildfire_lines): {workspace_update}")
-            print(f" Workspace: {workspace_update}")
+            arcpy.AddMessage(f"Step 11. Workspace from connection_info (wildfire_lines): {workspace_update}")
+            print(f"Step 11. Workspace: {workspace_update}")
         else:
-            arcpy.AddError("Could not retrieve 'database' from connection_info for wildfire_lines.")
+            arcpy.AddError("Step 11. Could not retrieve 'database' from connection_info for wildfire_lines.")
             return
     else:
         # For file geodatabases or shapefiles, use the data source path
         workspace_update = os.path.dirname(wildfire_lines.dataSource)
-        arcpy.AddMessage(f"Workspace from dataSource (wildfire_lines): {workspace_update}")
+        arcpy.AddMessage(f"Step 11. Workspace from dataSource (wildfire_lines): {workspace_update}")
 
     # Ensure workspace was obtained
     if not workspace_update:
-        arcpy.AddError("Failed to determine the workspace for wildfire_lines.")
+        arcpy.AddError("Step 11. Failed to determine the workspace for wildfire_lines.")
         return
 
     # Get data source paths
     wildfire_lines_path = wildfire_lines.dataSource
     lines_to_copy_path = lines_to_copy.dataSource
-    arcpy.AddMessage(f" wildfire_lines_path: {wildfire_lines_path}")
-    arcpy.AddMessage(f" lines_to_copy_path: {lines_to_copy_path}")
-    print(f" wildfire_lines_path: {wildfire_lines_path}")
-    print(f" lines_to_copy_path: {lines_to_copy_path}")
+    arcpy.AddMessage(f"Step 11. wildfire_lines_path: {wildfire_lines_path}")
+    arcpy.AddMessage(f"Step 11. lines_to_copy_path: {lines_to_copy_path}")
+    print(f"Step 11. wildfire_lines_path: {wildfire_lines_path}")
+    print(f"Step 11. lines_to_copy_path: {lines_to_copy_path}")
 
     # For debugging, output the data source paths
-    arcpy.AddMessage(f"wildfire_lines_path: {wildfire_lines_path}")
-    arcpy.AddMessage(f"lines_to_copy_path: {lines_to_copy_path}")
+    arcpy.AddMessage(f"Step 11. wildfire_lines_path: {wildfire_lines_path}")
+    arcpy.AddMessage(f"Step 11. lines_to_copy_path: {lines_to_copy_path}")
 
     ###############################################################################
     # Dynamically define the field mapping between wildfire_lines and lines_to_copy
     # Get the list of existing fields in lines_to_copy
     existing_fields = [f.name for f in arcpy.ListFields(lines_to_copy_path)]
-    arcpy.AddMessage(f" Fields in source: {existing_fields}")
-    print(f" Fields in source: {existing_fields}")
+    arcpy.AddMessage(f"Step 11. Fields in source: {existing_fields}")
+    print(f"Step 11. Fields in source: {existing_fields}")
 
     # Initialize field mapping
     field_mapping = {}
@@ -95,24 +95,24 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
         field_mapping["ProtValue"] = "ProtValue"
 
     # Check for "CritWork" field
-    if "LineWidth" in existing_fields:
-        field_mapping["LineWidth"] = "LineWidth"
+    #if "LineWidth" in existing_fields:
+    #    field_mapping["LineWidth"] = "LineWidth"
 
     # Check for "ProtValue" field
-    if "AvgSlope" in existing_fields:
-        field_mapping["AvgSlope"] = "AvgSlope"
+    #if "AvgSlope" in existing_fields:
+    #    field_mapping["AvgSlope"] = "AvgSlope"
 
     
 
     # If no matching fields are found, inform the user and exit
     if not field_mapping:
-        arcpy.AddError("No matching fields found between the feature classes.")
-        print("No matching fields found between the feature classes.")
+        arcpy.AddError("Step 11. No matching fields found between the feature classes.")
+        print("Step 11. No matching fields found between the feature classes.")
         return
 
     # For debugging, output the field mapping
-    arcpy.AddMessage(f"Field Mapping: {field_mapping}")
-    print(f" Field Mapping: {field_mapping}")
+    arcpy.AddMessage(f"Step 11. Field Mapping: {field_mapping}")
+    print(f"Step 11. Field Mapping: {field_mapping}")
     ###############################################################################
 
     # Get the spatial reference of wildfire_lines
@@ -139,8 +139,8 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
             field_values = row[1:]  # All fields except SHAPE@
             field_to_copy_dict[coords] = field_values
 
-    arcpy.AddMessage(f" {len(field_to_copy_dict)} source features indexed by coordinates.")
-    print(f" {len(field_to_copy_dict)} source features indexed by coordinates.")
+    arcpy.AddMessage(f"Step 11. {len(field_to_copy_dict)} source features indexed by coordinates.")
+    print(f"Step 11. {len(field_to_copy_dict)} source features indexed by coordinates.")
     
     # Initialize a list to keep track of skipped rows
     skipped_rows = []
@@ -177,23 +177,23 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
                     else:
                         unmatched_count += 1
 
-        arcpy.AddMessage(f" {updated_count} features updated.")
-        arcpy.AddMessage(f" {unmatched_count} features not matched by coordinates.")
-        print(f" {updated_count} features updated.")
-        print(f" {unmatched_count} features not matched by coordinates.")
+        arcpy.AddMessage(f"Step 11. {updated_count} features updated.")
+        arcpy.AddMessage(f"Step 11. {unmatched_count} features not matched by coordinates.")
+        print(f"Step 11. {updated_count} features updated.")
+        print(f"Step 11. {unmatched_count} features not matched by coordinates.")
         
         # After processing, report skipped rows
         if skipped_rows:
-            arcpy.AddWarning("\nSkipped rows due to field length exceeded:")
-            print("\n Skipped rows due to field length exceeded:")
+            arcpy.AddWarning("Step 11. \nSkipped rows due to field length exceeded:")
+            print("Step 11. \n Skipped rows due to field length exceeded:")
             for coords, field_name, value in skipped_rows:
-                arcpy.AddWarning(f"Coordinates: {coords}, Field: {field_name}, Value: {value}")
-                print(f"Coordinates: {coords}, Field: {field_name}, Value: {value}")
+                arcpy.AddWarning(f"Step 11. Coordinates: {coords}, Field: {field_name}, Value: {value}")
+                print(f"Step 11. Coordinates: {coords}, Field: {field_name}, Value: {value}")
 
-        arcpy.AddMessage("\nField values copied from lines_to_copy to wildfire_lines based on matching line vertices.")
-        print("\nField values copied from lines_to_copy to wildfire_lines based on matching line vertices.")
+        arcpy.AddMessage("Step 11. \nField values copied from lines_to_copy to wildfire_lines based on matching line vertices.")
+        print("Step 11. \nField values copied from lines_to_copy to wildfire_lines based on matching line vertices.")
 
     except Exception as e:
-        arcpy.AddError(f"An error occurred during the edit session: {e}")
-        print(f" An error occurred: {e}")
+        arcpy.AddError(f"Step 11. An error occurred during the edit session: {e}")
+        print(f"Step 11. An error occurred: {e}")
         return
