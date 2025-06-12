@@ -11,7 +11,8 @@ import os
 
 
 # Add your shared script folder to the module search path
-sys.path.insert(1, r"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\Scripts\Wildfire_Rehab_Tool")
+sys.path.insert(1, r"\\spatialfiles.bcgov\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_Tool")
+#sys.path.insert(1, r"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\Scripts\Wildfire_Rehab_Tool")
 
 # Wildfire_Rehab_Tool/main.py
 
