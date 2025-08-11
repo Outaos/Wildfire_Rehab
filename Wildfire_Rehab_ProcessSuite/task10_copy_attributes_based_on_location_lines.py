@@ -83,18 +83,35 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
     field_mapping = {}
 
     # Check for "CaptureDate" field
-    if "TimeStamp" in existing_fields:
-        field_mapping["CaptureDate"] = "TimeStamp"
-    elif "TimeWhen" in existing_fields:
-        field_mapping["CaptureDate"] = "TimeWhen"
+    #if "TimeStamp" in existing_fields:
+    #    field_mapping["CaptureDate"] = "TimeStamp"
+    #elif "TimeWhen" in existing_fields:
+    #    field_mapping["CaptureDate"] = "TimeWhen"
+    if "CaptureDate" in existing_fields:
+        if "TimeStamp" in existing_fields:
+            field_mapping["CaptureDate"] = "TimeStamp"
+        elif "TimeWhen" in existing_fields:
+            field_mapping["CaptureDate"] = "TimeWhen"
+    elif "TimeStamp" in existing_fields:
+        if "TimeStamp" in existing_fields:
+            field_mapping["TimeStamp"] = "TimeStamp"
+        elif "TimeWhen" in existing_fields:
+            field_mapping["TimeStamp"] = "TimeWhen"
 
     # Check for "Comments" field
-    if "desc" in existing_fields:
-        field_mapping["Comments"] = "desc"
+    #if "desc" in existing_fields:
+    #    field_mapping["Comments"] = "desc"
+    #elif "desc" in existing_fields:
+    #    field_mapping["Description"] = "desc"
+    #elif "Descr" in existing_fields:
+    #    field_mapping["Comments"] = "Descr"
+
+    if "Comments" in existing_fields:
+        if "desc" in existing_fields:
+            field_mapping["Comments"] = "desc"
     elif "desc" in existing_fields:
-        field_mapping["Description"] = "desc"
-    elif "Descr" in existing_fields:
-        field_mapping["Comments"] = "Descr"
+        if "desc" in existing_fields:
+            field_mapping["desc"] = "desc"
 
     # Check for "Label" field
     if "name" in existing_fields:
