@@ -94,7 +94,7 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
             field_mapping["CaptureDate"] = "TimeWhen"
     elif "TimeStamp" in existing_fields:
         if "TimeStamp" in existing_fields:
-            field_mapping["TimeStamp"] = "TimeStamp"
+            field_mapping["CaptureDate"] = "TimeStamp"
         elif "TimeWhen" in existing_fields:
             field_mapping["TimeStamp"] = "TimeWhen"
 
@@ -111,7 +111,7 @@ def copy_attributes_based_on_location_lines(lines_to_copy, wildfire_lines):
             field_mapping["Comments"] = "desc"
     elif "desc" in existing_fields:
         if "desc" in existing_fields:
-            field_mapping["desc"] = "desc"
+            field_mapping["Comments"] = "desc"
 
     # Check for "Label" field
     if "name" in existing_fields:
