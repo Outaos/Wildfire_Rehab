@@ -37,8 +37,13 @@ def backup_gdb(fire_year, fire_number):
     
     # Define input and output paths
     input_gdb = fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
-    #input_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_ProcessSuite\FireSeasonWork_Test\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
     output_gdb = fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\Outgoing\{fire_number}_Rehab_Backup.gdb"
+
+    # TEST locations
+    #input_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Rehab\TEST_for_script\C59999\Data\{fire_number}_Rehab.gdb"
+    #output_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Rehab\TEST_for_script\C59999\Data\{fire_number}_Rehab_Backup.gdb"
+
+    #input_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_ProcessSuite\FireSeasonWork_Test\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
     #output_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_ProcessSuite\FireSeasonWork_Test\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\Outgoing\{fire_number}_Rehab_Backup.gdb"
 
 
@@ -48,9 +53,6 @@ def backup_gdb(fire_year, fire_number):
     print("Step 1. Backup completed successfully.")
 
 if __name__ == "__main__":
-    #fire_year = '2024'
-    #fire_number = 'C41440' 
-    # Get parameters from user
     fire_year = arcpy.GetParameterAsText(0)
     fire_number = arcpy.GetParameterAsText(1)
     
