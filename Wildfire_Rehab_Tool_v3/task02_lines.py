@@ -9,16 +9,10 @@ Workflow
 2.3 Copies domain values from input lines
 2.4 Updates basic fields
 
-Notes
-- User provides:
-  - lines_to_copy: source lines (feature layer / feature class)
-  - lines_to_update: target lines (feature layer / feature class)
-- We do NOT search for group layers or fire-number-based layer names anymore.
-- Matching logic for 2.2 and 2.3 uses rounded (firstPoint, lastPoint) coords, as in your original.
 """
 
 #############################################################################################
-# 1.0 HELPERS
+# 2.0 HELPERS
 #############################################################################################
 
 def _workspace_from_dataset(dataset_or_layer) -> str:
