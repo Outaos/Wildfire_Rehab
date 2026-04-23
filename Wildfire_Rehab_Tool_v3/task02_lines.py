@@ -70,10 +70,10 @@ def _safe_set(row, idx, value, target_table, target_field_name, skipped_rows, ke
     if isinstance(value, str):
         max_len = _get_field_length(target_table, target_field_name)
         if max_len and len(value) > max_len:
-            msg = f"Skipping '{target_field_name}' at {key_for_msg}: value length {len(value)} > {max_len}"
+            msg = f"Truncating '{target_field_name}' at {key_for_msg}: value length {len(value)} > {max_len}"
             arcpy.AddWarning(msg)
-            skipped_rows.append((key_for_msg, target_field_name, value))
-            return False
+
+            value = value[:max_len]
 
     row[idx] = value
     return True
@@ -124,7 +124,7 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
     Copies attribute values by matching line endpoint keys.
     Matches endpoints after projecting source geometry into target spatial reference.
     """
-    src = _ds_path(lines_to_copy)
+    src = lines_to_copy  #_ds_path(lines_to_copy)
     tgt = _ds_path(lines_to_update)
 
     arcpy.AddMessage("2.2 Starting attribute copy process...")
@@ -140,10 +140,13 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
         elif "TimeWhen" in src_fields:
             field_mapping["CaptureDate"] = "TimeWhen"
 
-    # Comments mapping (target has Comments)
+    # Comments mapping (target has Comments) - flexible source field detection
     if "Comments" in [f.name for f in arcpy.ListFields(tgt)]:
-        if "desc" in src_fields:
-            field_mapping["Comments"] = "desc"
+        for candidate in ["desc", "Desc", "description", "Description", "comments", "Comments", "notes", "Notes"]:
+            if candidate in src_fields:
+                field_mapping["Comments"] = candidate
+                arcpy.AddMessage(f"2.2 Using '{candidate}' as source for 'Comments'")
+                break
 
     # Label mapping
     if "Label" in [f.name for f in arcpy.ListFields(tgt)]:
@@ -211,6 +214,35 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
     return updated_count, unmatched_count
 
 
+def _normalize_linewidth(label: str) -> str | None:
+    """
+    Convert values like '6m', '12m', etc. to nearest allowed category:
+    1m, 5m, 10m, 15m, 20m and wider
+    """
+    if not label:
+        return None
+
+    label = label.strip().lower()
+
+    # Extract number from 'Xm'
+    match = re.match(r'(\d+)\s*m', label)
+    if not match:
+        return label  # fallback to original
+
+    val = int(match.group(1))
+
+    # Allowed buckets
+    buckets = [1, 5, 10, 15, 20]
+
+    # Find nearest bucket
+    nearest = min(buckets, key=lambda x: abs(x - val))
+
+    if nearest >= 20:
+        return "20m and wider"
+    else:
+        return f"{nearest}m"
+
+
 #############################################################################################
 # 2.3 COPY DOMAIN VALUES BASED ON LOCATION - LINES
 #############################################################################################
@@ -220,7 +252,7 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
     Copies coded domain values (RLType/FLType/etc) by mapping the source label -> code,
     matched by endpoint key. Uses 'sym_name' fallback logic similar to your original.
     """
-    src = _ds_path(lines_to_copy)
+    src = lines_to_copy  #_ds_path(lines_to_copy)
     tgt = _ds_path(lines_to_update)
 
     arcpy.AddMessage("2.3 Starting domain copy process...")
@@ -394,6 +426,10 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
                     label = source_data[key].get(field)
                     if not label:
                         continue
+
+                    # Special handling for LineWidth
+                    if field == "LineWidth":
+                        label = _normalize_linewidth(label)
 
                     mapped = domain_mapping.get(_norm(label))
                     if mapped is None:
