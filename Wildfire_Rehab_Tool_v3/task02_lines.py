@@ -1,6 +1,8 @@
 import arcpy
 import os
 import re
+from datetime import datetime
+
 
 """
 Workflow
@@ -142,7 +144,7 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
 
     # Comments mapping (target has Comments) - flexible source field detection
     if "Comments" in [f.name for f in arcpy.ListFields(tgt)]:
-        for candidate in ["desc", "Desc", "description", "Description", "comments", "Comments", "notes", "Notes"]:
+        for candidate in ["desc", "Desc", "description", "Description","Descriptio","Desc", "comments", "Comments", "notes", "Notes"]:
             if candidate in src_fields:
                 field_mapping["Comments"] = candidate
                 arcpy.AddMessage(f"2.2 Using '{candidate}' as source for 'Comments'")
@@ -201,6 +203,21 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
                 changed = False
                 for i, val in enumerate(values):
                     tgt_field = fields_to_update[i + 1]
+
+                    # --- FIX for CaptureDate ---
+                    if tgt_field == "CaptureDate" and val:
+                        try:
+                            # If it's a string like '2025-10-02 09:32:27'
+                            if isinstance(val, str):
+                                val = datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+                            
+                            # If it's already datetime, just strip time
+                            val = val.date()
+
+                        except Exception:
+                            arcpy.AddWarning(f"Failed to parse CaptureDate value: {val}")
+                            continue
+
                     if _safe_set(row, i + 1, val, tgt, tgt_field, skipped_rows, key):
                         changed = True
 

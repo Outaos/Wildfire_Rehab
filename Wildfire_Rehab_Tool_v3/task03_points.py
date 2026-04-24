@@ -65,10 +65,10 @@ def _safe_set_text(row, idx, value, target_table, target_field_name, skipped, ke
     if fld and fld.type == "String" and isinstance(value, str):
         max_len = fld.length
         if max_len and len(value) > max_len:
-            msg = f"Skipping '{target_field_name}' at {key_for_msg}: value length {len(value)} > {max_len}"
+            msg = f"Truncating '{target_field_name}' at {key_for_msg}: value length {len(value)} > {max_len}"
             arcpy.AddWarning(msg)
-            skipped.append((key_for_msg, target_field_name, value))
-            return False
+
+            value = value[:max_len] 
 
     row[idx] = value
     return True
@@ -135,12 +135,13 @@ def copy_attributes_based_on_location_points(points_to_copy, points_to_update):
         elif "TimeWhen" in src_fields:
             field_mapping["CaptureDate"] = "TimeWhen"
 
-    # Comments mapping
+    # Comments mapping (flexible source field detection)
     if "Comments" in tgt_fields:
-        if "desc" in src_fields:
-            field_mapping["Comments"] = "desc"
-        elif "Descr" in src_fields:
-            field_mapping["Comments"] = "Descr"
+        for candidate in ["desc", "Desc", "description", "Description","Descriptio", "Descr", "comments", "Comments", "notes", "Notes"]:
+            if candidate in src_fields:
+                field_mapping["Comments"] = candidate
+                arcpy.AddMessage(f"3.2 Using '{candidate}' as source for 'Comments'")
+                break
 
     # Label mapping
     if "Label" in tgt_fields:
@@ -321,12 +322,25 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
     src_all = [f.name for f in arcpy.ListFields(src)]
     tgt_all = [f.name for f in arcpy.ListFields(tgt)]
 
-    # Determine what we can read from source
-    read_candidates = ["sym_name", "RPtType2", "RPtType3"]
-    read_fields = ["SHAPE@"] + [f for f in read_candidates if f in src_all]
 
-    if "sym_name" not in read_fields:
-        arcpy.AddWarning("3.3 Source is missing 'sym_name'. RPtType mapping may not work.")
+    # Determine primary label field (sym_name OR RPtType)
+    primary_label_field = None
+    if "sym_name" in src_all:
+        primary_label_field = "sym_name"
+    elif "RPtType" in src_all:
+        primary_label_field = "RPtType"
+        arcpy.AddMessage("3.3 Using 'RPtType' as fallback for 'sym_name'")
+    else:
+        arcpy.AddWarning("3.3 Source missing both 'sym_name' and 'RPtType'. Mapping may fail.")
+
+    # Build read fields
+    read_candidates = ["RPtType2", "RPtType3"]
+    read_fields = ["SHAPE@"]
+
+    if primary_label_field:
+        read_fields.append(primary_label_field)
+
+    read_fields += [f for f in read_candidates if f in src_all]
 
     # Determine what we can update on target
     update_candidates = ["RPtType", "RPtType2", "RPtType3"]
@@ -345,7 +359,7 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
             geom = row[idx["SHAPE@"]].projectAs(tgt_sr)
             key = _pt_key(geom, decimals=3)
 
-            sym = row[idx["sym_name"]] if "sym_name" in idx else None
+            sym = row[idx[primary_label_field]] if primary_label_field in idx else None
 
             def get_label(field):
                 if field in idx:
