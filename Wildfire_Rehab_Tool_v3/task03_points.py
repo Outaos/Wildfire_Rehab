@@ -135,12 +135,23 @@ def copy_attributes_based_on_location_points(points_to_copy, points_to_update):
         elif "TimeWhen" in src_fields:
             field_mapping["CaptureDate"] = "TimeWhen"
 
-    # Comments mapping (flexible source field detection)
+    # Comments mapping (target can be Comments OR Description)
+
+    tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
+
+    # Determine which target field to use
+    target_comment_field = None
     if "Comments" in tgt_fields:
-        for candidate in ["desc", "Desc", "description", "Description","Descriptio", "Descr", "comments", "Comments", "notes", "Notes"]:
+        target_comment_field = "Comments"
+    elif "Description" in tgt_fields:
+        target_comment_field = "Description"
+
+    # Map source → target
+    if target_comment_field:
+        for candidate in ["desc", "Desc", "description", "Description", "Descriptio", "comments", "Comments", "notes", "Notes"]:
             if candidate in src_fields:
-                field_mapping["Comments"] = candidate
-                arcpy.AddMessage(f"3.2 Using '{candidate}' as source for 'Comments'")
+                field_mapping[target_comment_field] = candidate
+                arcpy.AddMessage(f"2.2 Using '{candidate}' as source for '{target_comment_field}'")
                 break
 
     # Label mapping
