@@ -9,6 +9,8 @@ Workflow
 3.3 Copies domain values from input points
 3.4 Updates basic fields
 """
+SOURCE_UNKNOWN = "0"
+SOURCE_NON_CORRECTED_GROUND_GPS = "2"
 
 #############################################################################################
 # 1.0 HELPERS
@@ -324,7 +326,15 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
         'Other Rehab Treatment Type': '46',
         'Bunched Wood (BW)': '47',
         'Seepage (SG)': '48',
-        'Point of Commencement / Termination (PTC)': '49'
+        'Point of Commencement / Termination (PTC)': '49',
+
+        # Source
+        'Unknown': '0',
+        'Non-corrected ground GPS': '2',
+        'Non-corrected airborne GPS': '3',
+        'Hand sketch of any type': '1',
+        'Digitized other': '99',
+        'Derived from satellite imagery': '9'
     }
     domain_mapping = {_norm(k): v for k, v in domain_mapping_raw.items()}
 
@@ -345,7 +355,8 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
         arcpy.AddWarning("3.3 Source missing both 'sym_name' and 'RPtType'. Mapping may fail.")
 
     # Build read fields
-    read_candidates = ["RPtType2", "RPtType3"]
+    #read_candidates = ["RPtType2", "RPtType3"]
+    read_candidates = ["RPtType2", "RPtType3", "Source"]
     read_fields = ["SHAPE@"]
 
     if primary_label_field:
@@ -354,7 +365,7 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
     read_fields += [f for f in read_candidates if f in src_all]
 
     # Determine what we can update on target
-    update_candidates = ["RPtType", "RPtType2", "RPtType3"]
+    update_candidates = ["RPtType", "RPtType2", "RPtType3", "Source", "CritWork"]
     update_fields = [f for f in update_candidates if f in tgt_all]
 
     if not update_fields:
@@ -383,6 +394,7 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
                 "RPtType": sym,
                 "RPtType2": get_label("RPtType2"),
                 "RPtType3": get_label("RPtType3"),
+                "Source": row[idx["Source"]] if "Source" in idx else None,
             }
 
     arcpy.AddMessage(f"3.3 Indexed {len(source_data)} source feature(s) for domain mapping.")
@@ -402,11 +414,29 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
 
                 changed = False
                 for i, field in enumerate(update_fields):
+                    # Force CritWork to null
+                    if field == "CritWork":
+                        row[i + 1] = None
+                        changed = True
+                        continue
+
                     label = source_data[key].get(field)
+
+                    # Default Source if missing
+                    if field == "Source" and not label:
+                        row[i + 1] = SOURCE_NON_CORRECTED_GROUND_GPS
+                        changed = True
+                        continue
+
                     if not label:
                         continue
 
                     mapped = domain_mapping.get(_norm(label))
+
+                    # Source field stores TEXT domain codes
+                    if field == "Source" and mapped is not None:
+                        mapped = str(mapped)
+
                     if mapped is None:
                         skipped += 1
                         continue
@@ -417,6 +447,7 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
                 if changed:
                     cur.updateRow(row)
                     updated += 1
+
 
     arcpy.AddMessage(f"3.3 Updated {updated} feature(s). Skipped/unmatched: {skipped}.")
     return updated, skipped
@@ -435,7 +466,7 @@ def update_basic_fields_points(points_to_update, fire_number, fire_name, status)
     workspace = _workspace_from_dataset(points_to_update)
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
-    required = ["Fire_Num", "Fire_Name", "Status"]
+    required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]
     missing = [f for f in required if f not in tgt_fields]
     if missing:
         arcpy.AddWarning(f"3.4 Target missing fields {missing}. Skipping 3.4.")
@@ -443,7 +474,7 @@ def update_basic_fields_points(points_to_update, fire_number, fire_name, status)
 
     updated = 0
     with arcpy.da.Editor(workspace):
-        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]) as cur:
             for row in cur:
                 changed = False
 
@@ -457,6 +488,16 @@ def update_basic_fields_points(points_to_update, fire_number, fire_name, status)
 
                 if row[2] is None or row[2] == "" or row[2] == "RehabRequiresFieldVerification":
                     row[2] = str(status)
+                    changed = True
+
+                # Source default
+                if row[3] is None or row[3] == "" or row[3] == SOURCE_UNKNOWN:
+                    row[3] = SOURCE_NON_CORRECTED_GROUND_GPS
+                    changed = True
+
+                # CritWork default
+                if row[4] == "":
+                    row[4] = None
                     changed = True
 
                 if changed:

@@ -13,6 +13,9 @@ Workflow
 
 """
 
+SOURCE_UNKNOWN = "0"
+SOURCE_NON_CORRECTED_GROUND_GPS = "2"
+
 #############################################################################################
 # 2.0 HELPERS
 #############################################################################################
@@ -375,9 +378,21 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
         '0 to 15': '0',
         '16 to 25': '1',
         '26 to 35': '2',
-        'above 35': '3'
+        'above 35': '3',
+
+        # Source
+        'Unknown': '0',
+        'Non-corrected ground GPS': '2',
+        'Non-corrected airborne GPS': '3',
+        'Hand sketch of any type': '1',
+        'Digitized other': '99',
+        'Derived from satellite imagery': '9'
     }
-    domain_mapping = {_norm(k): v for k, v in domain_mapping_raw.items()}
+
+
+
+    #domain_mapping = {_norm(k): v for k, v in domain_mapping_raw.items()}
+    domain_mapping = {_norm(k): int(v) for k, v in domain_mapping_raw.items()}
 
     tgt_sr = arcpy.Describe(tgt).spatialReference
 
@@ -386,7 +401,7 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
     tgt_all = [f.name for f in arcpy.ListFields(tgt)]
 
     # We will read these if present; sym_name is used as fallback label
-    optional_fields = ["RLType", "RLType2", "RLType_2", "RLType3", "RLType_3", "FLType", "FLType2", "LineWidth", "AvgSlope", "sym_name"]
+    optional_fields = ["RLType", "RLType2", "RLType_2", "RLType3", "RLType_3", "FLType", "FLType2", "LineWidth", "AvgSlope", "Source", "sym_name"]
     read_fields = ["SHAPE@"] + [f for f in optional_fields if f in src_all]
     if "sym_name" not in read_fields:
         arcpy.AddWarning("2.3 Source does not have 'sym_name'. Fallbacks may be less accurate.")
@@ -417,6 +432,7 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
                 "FLType2": get_label("FLType2"),
                 "LineWidth": get_label("LineWidth"),
                 "AvgSlope": get_label("AvgSlope"),
+                "Source": get_label("Source"),
             }
 
     arcpy.AddMessage(f"2.3 Indexed {len(source_data)} source feature(s) for domain mapping.")
@@ -429,7 +445,9 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
         "FLType",
         "FLType2",
         "LineWidth",
-        "AvgSlope"
+        "AvgSlope",
+        "Source",
+        "CritWork"
     ]
     fields_to_update = [f for f in preferred if f in tgt_all]
     if not fields_to_update:
@@ -451,7 +469,20 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
 
                 changed = False
                 for i, field in enumerate(fields_to_update):
+                    # Force CritWork to null
+                    if field == "CritWork":
+                        row[i + 1] = None
+                        changed = True
+                        continue
+                    #label = source_data[key].get(field)
+                    #if not label:
+                    #    continue
                     label = source_data[key].get(field)
+                    # Default Source if missing
+                    if field == "Source" and not label:
+                        row[i + 1] = "2"   # Non-corrected ground GPS
+                        changed = True
+                        continue
                     if not label:
                         continue
 
@@ -460,6 +491,9 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
                         label = _normalize_linewidth(label)
 
                     mapped = domain_mapping.get(_norm(label))
+                    # Source field stores text codes
+                    if field == "Source" and mapped is not None:
+                        mapped = str(mapped)
                     if mapped is None:
                         skipped += 1
                         continue
@@ -488,7 +522,8 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
     workspace = _workspace_from_dataset(lines_to_update)
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
-    required = ["Fire_Num", "Fire_Name", "Status"]
+    #required = ["Fire_Num", "Fire_Name", "Status"]
+    required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]
     missing = [f for f in required if f not in tgt_fields]
     if missing:
         arcpy.AddWarning(f"2.4 Target missing fields {missing}. Skipping 2.4.")
@@ -496,7 +531,8 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
 
     updated = 0
     with arcpy.da.Editor(workspace):
-        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status"]) as cur:
+        #with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]) as cur:
             for row in cur:
                 changed = False
 
@@ -510,6 +546,18 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
 
                 if row[2] is None or row[2] == "" or row[2] == "RehabRequiresFieldVerification":
                     row[2] = str(status)
+                    changed = True
+
+                # Source default
+                # 0 = Unknown, 2 = Non-corrected ground GPS
+                if row[3] is None or row[3] == "" or row[3] == SOURCE_UNKNOWN:
+                    row[3] = SOURCE_NON_CORRECTED_GROUND_GPS
+                    changed = True
+
+
+                # CritWork default
+                if row[4] == "":
+                    row[4] = None
                     changed = True
 
                 if changed:
