@@ -16,6 +16,32 @@ Workflow
 SOURCE_UNKNOWN = "0"
 SOURCE_NON_CORRECTED_GROUND_GPS = "2"
 
+NRS_DISTRICT_CODES = {
+    "DCC": 1,
+    "DCK": 2,
+    "DCR": 3,
+    "DCS": 4,
+    "DFN": 5,
+    "DKA": 6,
+    "DKM": 7,
+    "DMH": 8,
+    "DMK": 9,
+    "DND": 10,
+    "DNI": 11,
+    "DOS": 12,
+    "DPC": 13,
+    "DPG": 14,
+    "DQC": 15,
+    "DQU": 16,
+    "DRM": 17,
+    "DSC": 18,
+    "DSE": 19,
+    "DSI": 20,
+    "DSQ": 21,
+    "DSS": 22,
+    "DVA": 23
+}
+
 #############################################################################################
 # 2.0 HELPERS
 #############################################################################################
@@ -386,7 +412,32 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
         'Non-corrected airborne GPS': '3',
         'Hand sketch of any type': '1',
         'Digitized other': '99',
-        'Derived from satellite imagery': '9'
+        'Derived from satellite imagery': '9',
+
+        # NaturalResourceDistrict
+        'DCC': '1',
+        'DCK': '2',
+        'DCR': '3',
+        'DCS': '4',
+        'DFN': '5',
+        'DKA': '6',
+        'DKM': '7',
+        'DMH': '8',
+        'DMK': '9',
+        'DND': '10',
+        'DNI': '11',
+        'DOS': '12',
+        'DPC': '13',
+        'DPG': '14',
+        'DQC': '15',
+        'DQU': '16',
+        'DRM': '17',
+        'DSC': '18',
+        'DSE': '19',
+        'DSI': '20',
+        'DSQ': '21',
+        'DSS': '22',
+        'DVA': '23'
     }
 
 
@@ -447,7 +498,8 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
         "LineWidth",
         "AvgSlope",
         "Source",
-        "CritWork"
+        "CritWork",
+        "ProtValue"
     ]
     fields_to_update = [f for f in preferred if f in tgt_all]
     if not fields_to_update:
@@ -471,6 +523,10 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
                 for i, field in enumerate(fields_to_update):
                     # Force CritWork to null
                     if field == "CritWork":
+                        row[i + 1] = None
+                        changed = True
+                        continue
+                    if field == "ProtValue":
                         row[i + 1] = None
                         changed = True
                         continue
@@ -513,7 +569,7 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
 # 2.4 UPDATE BASIC FIELDS - LINES
 #############################################################################################
 
-def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
+def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status, nrs_district):
     """
     Update Fire_Num / Fire_Name / Status on target lines.
     Only fills blanks (and treats RehabRequiresFieldVerification as blank for Status).
@@ -523,7 +579,7 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
     #required = ["Fire_Num", "Fire_Name", "Status"]
-    required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]
+    required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]
     missing = [f for f in required if f not in tgt_fields]
     if missing:
         arcpy.AddWarning(f"2.4 Target missing fields {missing}. Skipping 2.4.")
@@ -532,7 +588,7 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
     updated = 0
     with arcpy.da.Editor(workspace):
         #with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status"]) as cur:
-        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
             for row in cur:
                 changed = False
 
@@ -560,6 +616,21 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status):
                     row[4] = None
                     changed = True
 
+                # ProtValue default
+                if row[5] == "":
+                    row[5] = None
+                    changed = True
+
+                # NaturalResourceDistrict - overwrites existing values
+                if nrs_district and row[6] is None or row[6] == "":
+                    mapped_district = NRS_DISTRICT_CODES.get(nrs_district.upper())
+
+                    if mapped_district is not None:
+                        row[6] = mapped_district
+                        changed = True
+                    else:
+                        arcpy.AddWarning(f"Unknown NRS district code: {nrs_district}")
+
                 if changed:
                     cur.updateRow(row)
                     updated += 1
@@ -580,9 +651,10 @@ if __name__ == "__main__":
     fire_number = arcpy.GetParameterAsText(2)
     fire_name = arcpy.GetParameterAsText(3)
     status = arcpy.GetParameterAsText(4)
+    nrs_district = arcpy.GetParameterAsText(5)
 
     copy_lines(lines_to_copy, lines_to_update)
     copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update)
     copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update)
-    update_basic_fields_lines(lines_to_update, fire_number, fire_name, status)
+    update_basic_fields_lines(lines_to_update, fire_number, fire_name, status, nrs_district)
 
