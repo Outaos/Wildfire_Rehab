@@ -61,8 +61,8 @@ def _get_rehab_gdb_paths(fire_year, fire_number, fire_district, fire_code):
     #input_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_ProcessSuite\FireSeasonWork_Test\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
     #output_gdb = fr"\\spatialfiles.bcgov\work\srm\wml\Workarea\ofedyshy\Scripts\Rehab\Wildfire_Rehab_GitHub\Wildfire_Rehab_ProcessSuite\FireSeasonWork_Test\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\Outgoing\{fire_number}_Rehab_Backup.gdb"
 
-    input_gdb = fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
-    output_gdb = fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\Outgoing\{fire_number}_Rehab_Backup.gdb"
+    input_gdb = fr"\\spatialfiles3.bcgov\WFRecovery$\WSR\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\{fire_number}_Rehab.gdb"
+    output_gdb = fr"\\spatialfiles3.bcgov\WFRecovery$\WSR\FireSeasonWork\{fire_year}\{fire_district}\{fire_code}\{fire_number}\Data\Outgoing\{fire_number}_Rehab_Backup.gdb"
     gdb_path = input_gdb
     return input_gdb, output_gdb, gdb_path
 

@@ -66,7 +66,7 @@ def district_to_region(fire_number: str) -> str:
 def default_reports_folder(fire_year: str, fire_number: str) -> str:
     region = district_to_region(fire_number)
     fire_code = fire_number[:2]
-    return fr"\\spatialfiles.bcgov\work\!Shared_Access\Provincial_Wildfire_Rehab\FireSeasonWork\{fire_year}\{region}\{fire_code}\{fire_number}\Outputs\Reports"
+    return fr"\\spatialfiles3.bcgov\WFRecovery$\WSR\FireSeasonWork\{fire_year}\{region}\{fire_code}\{fire_number}\Outputs\Reports"
 
 
 def ensure_folder(path: str) -> None:
