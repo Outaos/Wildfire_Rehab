@@ -43,7 +43,7 @@ NRS_DISTRICT_CODES = {
 }
 
 #############################################################################################
-# 2.0 HELPERS
+# 2 HELPERS
 #############################################################################################
 
 def _workspace_from_dataset(dataset_or_layer) -> str:
@@ -85,6 +85,22 @@ def _line_key(geom, decimals=3):
     lp = (round(geom.lastPoint.X, decimals), round(geom.lastPoint.Y, decimals))
     return (fp, lp)
 
+def _line_duplicate_key(geom, decimals=3):
+    """
+    Direction-independent endpoint key used only to find possible duplicate lines.
+    A->B and B->A produce the same key.
+    """
+    fp = (
+        round(geom.firstPoint.X, decimals),
+        round(geom.firstPoint.Y, decimals)
+    )
+    lp = (
+        round(geom.lastPoint.X, decimals),
+        round(geom.lastPoint.Y, decimals)
+    )
+
+    return tuple(sorted((fp, lp)))
+
 def _get_field_length(table, field_name) -> int | None:
     for f in arcpy.ListFields(table, field_name):
         if f.name.lower() == field_name.lower():
@@ -109,17 +125,76 @@ def _safe_set(row, idx, value, target_table, target_field_name, skipped_rows, ke
     row[idx] = value
     return True
 
+#############################################################################################
+# 2.0 RETIRE NULL GEOMETRY RECORDS
+#############################################################################################
+
+def retire_null_geometry_lines(lines_to_update):
+    """
+    Find target line records with null/empty geometry and set Status = 'Retired'.
+    Runs before any new spatial data is copied.
+    """
+    tgt = _ds_path(lines_to_update)
+    workspace = _workspace_from_dataset(lines_to_update)
+
+    tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
+
+    if "Status" not in tgt_fields:
+        raise ValueError(
+            "2.0 Target does not contain a Status field. "
+            "Cannot retire null geometry records."
+        )
+
+    null_count = 0
+    retired_count = 0
+    already_retired = 0
+
+    with arcpy.da.Editor(workspace):
+        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Status"]) as cur:
+            for row in cur:
+                geom = row[0]
+
+                # Null geometry, or an empty geometry with no vertices
+                if geom is None or geom.pointCount == 0:
+                    null_count += 1
+
+                    if row[1] != "Retired":
+                        row[1] = "Retired"
+                        cur.updateRow(row)
+                        retired_count += 1
+                    else:
+                        already_retired += 1
+
+    arcpy.AddMessage(
+        f"2.0 Identified {null_count} target line(s) with null/empty geometry."
+    )
+    arcpy.AddMessage(
+        f"2.0 Retired {retired_count} null-geometry line(s)."
+    )
+
+    if already_retired:
+        arcpy.AddMessage(
+            f"2.0 {already_retired} null-geometry line(s) were already Retired."
+        )
+
+    return null_count, retired_count
 
 #############################################################################################
 # 2.1 COPY SPATIAL DATA - LINES
 #############################################################################################
 
+
 def copy_lines(lines_to_copy, lines_to_update):
     """
     Copy geometries from source into target. Inserts blank Fire_Num ('') like your original.
     """
-    src = _ds_path(lines_to_copy)
+    src = lines_to_copy  #_ds_path(lines_to_copy)
     tgt = _ds_path(lines_to_update)
+
+    source_count = int(arcpy.management.GetCount(src)[0])
+    arcpy.AddMessage(
+        f"2.1 Processing {source_count} incoming line(s)."
+    )
 
     if _shape_type(src) != "Polyline" or _shape_type(tgt) != "Polyline":
         raise ValueError("2.1 Both inputs must be Polyline feature classes/layers.")
@@ -234,7 +309,11 @@ def copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update):
     with arcpy.da.Editor(workspace):
         with arcpy.da.UpdateCursor(tgt, fields_to_update) as cur:
             for row in cur:
-                key = _line_key(row[0], decimals=3)
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
+                key = _line_key(geom, decimals=3)
+                #key = _line_key(row[0], decimals=3)
                 if key not in source_index:
                     unmatched_count += 1
                     continue
@@ -514,7 +593,11 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
     with arcpy.da.Editor(workspace):
         with arcpy.da.UpdateCursor(tgt, ["SHAPE@"] + fields_to_update) as cur:
             for row in cur:
-                key = _line_key(row[0], decimals=3)
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
+                key = _line_key(geom, decimals=3)
+                #key = _line_key(row[0], decimals=3)
                 if key not in source_data:
                     skipped += 1
                     continue
@@ -653,6 +736,7 @@ if __name__ == "__main__":
     status = arcpy.GetParameterAsText(4)
     nrs_district = arcpy.GetParameterAsText(5)
 
+    retire_null_geometry_lines(lines_to_update)
     copy_lines(lines_to_copy, lines_to_update)
     copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update)
     copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update)
