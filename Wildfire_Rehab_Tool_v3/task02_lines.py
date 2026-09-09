@@ -122,6 +122,8 @@ def _safe_set(row, idx, value, target_table, target_field_name, skipped_rows, ke
 
             value = value[:max_len]
 
+    if row[idx] == value:
+        return False
     row[idx] = value
     return True
 
@@ -606,13 +608,15 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
                 for i, field in enumerate(fields_to_update):
                     # Force CritWork to null
                     if field == "CritWork":
-                        row[i + 1] = None
-                        changed = True
+                        if row[i + 1] is not None:
+                            row[i + 1] = None
+                            changed = True
                         continue
                     if field == "ProtValue":
-                        row[i + 1] = None
-                        changed = True
-                        continue
+                        if row[i + 1] is not None:
+                            row[i + 1] = None
+                            changed = True
+                            continue
                     #label = source_data[key].get(field)
                     #if not label:
                     #    continue
@@ -652,13 +656,23 @@ def copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update):
 # 2.4 UPDATE BASIC FIELDS - LINES
 #############################################################################################
 
-def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status, nrs_district):
+def update_basic_fields_lines(lines_to_copy, lines_to_update, fire_number, fire_name, status, nrs_district):
     """
     Update Fire_Num / Fire_Name / Status on target lines.
     Only fills blanks (and treats RehabRequiresFieldVerification as blank for Status).
     """
+    src = lines_to_copy
     tgt = _ds_path(lines_to_update)
     workspace = _workspace_from_dataset(lines_to_update)
+
+    tgt_sr = arcpy.Describe(tgt).spatialReference
+    source_keys = set()
+    with arcpy.da.SearchCursor(src, ["SHAPE@"]) as cur:
+        for (geom,) in cur:
+            if geom is None or geom.pointCount == 0:
+                continue
+            geom = geom.projectAs(tgt_sr)
+            source_keys.add(_line_key(geom, decimals=3))
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
     #required = ["Fire_Num", "Fire_Name", "Status"]
@@ -671,45 +685,51 @@ def update_basic_fields_lines(lines_to_update, fire_number, fire_name, status, n
     updated = 0
     with arcpy.da.Editor(workspace):
         #with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status"]) as cur:
-        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
             for row in cur:
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
+                key = _line_key(geom, decimals=3)
+                if key not in source_keys:
+                    continue
                 changed = False
 
-                if row[0] is None or row[0] == "":
-                    row[0] = str(fire_number)
-                    changed = True
-
                 if row[1] is None or row[1] == "":
-                    row[1] = str(fire_name)
+                    row[1] = str(fire_number)
                     changed = True
 
-                if row[2] is None or row[2] == "" or row[2] == "RehabRequiresFieldVerification":
-                    row[2] = str(status)
+                if row[2] is None or row[2] == "":
+                    row[2] = str(fire_name)
+                    changed = True
+
+                if row[3] is None or row[3] == "" or row[3] == "RehabRequiresFieldVerification":
+                    row[3] = str(status)
                     changed = True
 
                 # Source default
                 # 0 = Unknown, 2 = Non-corrected ground GPS
-                if row[3] is None or row[3] == "" or row[3] == SOURCE_UNKNOWN:
-                    row[3] = SOURCE_NON_CORRECTED_GROUND_GPS
+                if row[4] is None or row[4] == "" or row[4] == SOURCE_UNKNOWN:
+                    row[4] = SOURCE_NON_CORRECTED_GROUND_GPS
                     changed = True
 
 
                 # CritWork default
-                if row[4] == "":
-                    row[4] = None
-                    changed = True
-
-                # ProtValue default
                 if row[5] == "":
                     row[5] = None
                     changed = True
 
+                # ProtValue default
+                if row[6] == "":
+                    row[6] = None
+                    changed = True
+
                 # NaturalResourceDistrict - overwrites existing values
-                if nrs_district and row[6] is None or row[6] == "":
+                if nrs_district and row[7] is None or row[7] == "":
                     mapped_district = NRS_DISTRICT_CODES.get(nrs_district.upper())
 
                     if mapped_district is not None:
-                        row[6] = mapped_district
+                        row[7] = mapped_district
                         changed = True
                     else:
                         arcpy.AddWarning(f"Unknown NRS district code: {nrs_district}")
@@ -740,5 +760,5 @@ if __name__ == "__main__":
     copy_lines(lines_to_copy, lines_to_update)
     copy_attributes_based_on_location_lines(lines_to_copy, lines_to_update)
     copy_domain_values_based_on_location_lines(lines_to_copy, lines_to_update)
-    update_basic_fields_lines(lines_to_update, fire_number, fire_name, status, nrs_district)
+    update_basic_fields_lines(lines_to_copy, lines_to_update, fire_number, fire_name, status, nrs_district)
 

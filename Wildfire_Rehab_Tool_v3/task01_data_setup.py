@@ -155,6 +155,53 @@ def add_layers_to_group(fire_year, fire_number):
     return
 
 
+#############################################################################################
+# 1.2.1 APPLY DEFINITION QUERY TO MASTER POINTS AND LINES
+#############################################################################################
+
+def apply_master_definition_queries(fire_number):
+    """
+    Hide Retired point and line features in the Master group.
+    """
+
+    aprx = arcpy.mp.ArcGISProject("CURRENT")
+    map_obj = aprx.activeMap
+    group_layer_name = f"{fire_number}_Master"
+    group_layer = next(
+        (
+            lyr for lyr in map_obj.listLayers()
+            if lyr.isGroupLayer and lyr.name == group_layer_name
+        ),
+        None
+    )
+
+    if group_layer is None:
+        arcpy.AddWarning(f"Step 1.3 Group layer '{group_layer_name}' was not found.")
+        return
+
+    target_layers = {
+        "wildfireBC_Rehab_Point",
+        "wildfireBC_Rehab_Line"
+    }
+
+    query = "Status <> 'Retired'"   # OR Status IS NULL
+
+    updated = 0
+
+    for lyr in group_layer.listLayers():
+        if lyr.name not in target_layers:
+            continue
+
+        if not lyr.supports("DEFINITIONQUERY"):
+            arcpy.AddWarning(f"Step 1.3 '{lyr.name}' does not support definition queries.")
+            continue
+
+        lyr.definitionQuery = query
+        updated += 1
+        arcpy.AddMessage(f"Step 1.3 Applied definition query to '{lyr.name}'.")
+    aprx.save()
+
+    arcpy.AddMessage(f"Step 1.3 Definition query applied to {updated} Master layer(s).")
 
 
 #############################################################################################
@@ -320,6 +367,7 @@ if __name__ == "__main__":
     else:
         arcpy.AddMessage("Step 1.1 Backup skipped.")
     add_layers_to_group(fire_year, fire_number)
+    apply_master_definition_queries(fire_number)
     reproject_shapefiles_batch(fire_number, collected_data_folder, add_outputs_to_group=True)
 
 

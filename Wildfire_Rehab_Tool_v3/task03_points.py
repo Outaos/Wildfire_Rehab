@@ -98,9 +98,62 @@ def _safe_set_text(row, idx, value, target_table, target_field_name, skipped, ke
 
             value = value[:max_len] 
 
+    if row[idx] == value:
+        return False
     row[idx] = value
     return True
 
+#############################################################################################
+# 3.0 RETIRE NULL GEOMETRY RECORDS
+#############################################################################################
+
+def retire_null_geometry_points(points_to_update):
+    """
+    Find target point records with null/empty geometry and set Status = 'Retired'.
+    """
+    tgt = _ds_path(points_to_update)
+    workspace = _workspace_from_dataset(points_to_update)
+
+    tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
+
+    if "Status" not in tgt_fields:
+        raise ValueError(
+            "3.0 Target does not contain a Status field. "
+            "Cannot retire null geometry records."
+        )
+
+    null_count = 0
+    retired_count = 0
+    already_retired = 0
+
+    with arcpy.da.Editor(workspace):
+        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Status"]) as cur:
+            for row in cur:
+                geom = row[0]
+
+                if geom is None or geom.pointCount == 0:
+                    null_count += 1
+
+                    if row[1] != "Retired":
+                        row[1] = "Retired"
+                        cur.updateRow(row)
+                        retired_count += 1
+                    else:
+                        already_retired += 1
+
+    arcpy.AddMessage(
+        f"3.0 Identified {null_count} target point(s) with null/empty geometry."
+    )
+    arcpy.AddMessage(
+        f"3.0 Retired {retired_count} null-geometry point(s)."
+    )
+
+    if already_retired:
+        arcpy.AddMessage(
+            f"3.0 {already_retired} null-geometry point(s) were already Retired."
+        )
+
+    return null_count, retired_count
 
 #############################################################################################
 # 3.1 COPY SPATIAL DATA - POINTS
@@ -108,33 +161,75 @@ def _safe_set_text(row, idx, value, target_table, target_field_name, skipped, ke
 
 def copy_points(points_to_copy, points_to_update):
     """
-    Copy geometries from source into target. Inserts blank Fire_Num ('') if field exists.
+    Copy only new source points into target.
+    Respects source selections and skips points already present in target.
     """
-    src = _ds_path(points_to_copy)
+
+    src = points_to_copy
     tgt = _ds_path(points_to_update)
+
+    source_count = int(arcpy.management.GetCount(src)[0])
+    arcpy.AddMessage(f"3.1 Processing {source_count} incoming point(s).")
 
     if _shape_type(src) != "Point" or _shape_type(tgt) != "Point":
         raise ValueError("3.1 Both inputs must be Point feature classes/layers.")
 
     workspace = _workspace_from_dataset(points_to_update)
+    tgt_sr = arcpy.Describe(tgt).spatialReference
 
-    count = 0
+    # Existing target locations
+    existing_keys = set()
+
+    with arcpy.da.SearchCursor(tgt, ["SHAPE@"]) as cur:
+        for (geom,) in cur:
+            if geom is None or geom.pointCount == 0:
+                continue
+
+            geom = geom.projectAs(tgt_sr)
+
+            existing_keys.add(
+                _pt_key(geom, decimals=3)
+            )
+
+
+    copied_count = 0
+    skipped_existing = 0
+    skipped_null = 0
+
+    tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
+
     with arcpy.da.Editor(workspace):
         with arcpy.da.SearchCursor(src, ["SHAPE@"]) as s_cur:
-            tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
             if "Fire_Num" in tgt_fields:
-                with arcpy.da.InsertCursor(tgt, ["SHAPE@", "Fire_Num"]) as i_cur:
-                    for (geom,) in s_cur:
-                        i_cur.insertRow((geom, ""))
-                        count += 1
+                insert_fields = ["SHAPE@", "Fire_Num"]
             else:
-                with arcpy.da.InsertCursor(tgt, ["SHAPE@"]) as i_cur:
-                    for (geom,) in s_cur:
-                        i_cur.insertRow((geom,))
-                        count += 1
+                insert_fields = ["SHAPE@"]
+            with arcpy.da.InsertCursor(tgt, insert_fields) as i_cur:
+                for (geom,) in s_cur:
+                    if geom is None or geom.pointCount == 0:
+                        skipped_null += 1
+                        continue
+                    projected_geom = geom.projectAs(tgt_sr)
+                    key = _pt_key(projected_geom, decimals=3)
 
-    arcpy.AddMessage(f"3.1 Copied {count} point(s) from source into target.")
-    return count
+                    if key in existing_keys:
+                        skipped_existing += 1
+                        continue
+
+                    if "Fire_Num" in tgt_fields:
+                        i_cur.insertRow((projected_geom, ""))
+                    else:
+                        i_cur.insertRow((projected_geom,))
+
+                    copied_count += 1
+                    existing_keys.add(key)
+
+    arcpy.AddMessage(f"3.1 Copied {copied_count} new point(s) into target.")
+    arcpy.AddMessage(f"3.1 Skipped {skipped_existing} point(s) already present in target.")
+    if skipped_null:
+        arcpy.AddWarning(f"3.1 Skipped {skipped_null} incoming point(s) with null/empty geometry.")
+
+    return copied_count
 
 
 #############################################################################################
@@ -146,7 +241,7 @@ def copy_attributes_based_on_location_points(points_to_copy, points_to_update):
     Copies NON-DOMAIN attributes by matching centroid XY.
     Domain fields (RPtType*) are handled in 3.3 only.
     """
-    src = _ds_path(points_to_copy)
+    src = points_to_copy
     tgt = _ds_path(points_to_update)
 
     arcpy.AddMessage("3.2 Starting attribute copy process...")
@@ -208,7 +303,10 @@ def copy_attributes_based_on_location_points(points_to_copy, points_to_update):
 
     with arcpy.da.SearchCursor(src, fields_to_copy) as cur:
         for row in cur:
-            geom = row[0].projectAs(tgt_sr)
+            geom = row[0]
+            if geom is None or geom.pointCount == 0:
+                continue
+            geom = geom.projectAs(tgt_sr)
             key = _pt_key(geom, decimals=3)
             source_index[key] = row[1:]
 
@@ -225,7 +323,10 @@ def copy_attributes_based_on_location_points(points_to_copy, points_to_update):
     with arcpy.da.Editor(workspace):
         with arcpy.da.UpdateCursor(tgt, fields_to_update) as cur:
             for row in cur:
-                key = _pt_key(row[0], decimals=3)
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
+                key = _pt_key(geom, decimals=3)
                 if key not in source_index:
                     unmatched_count += 1
                     continue
@@ -256,7 +357,7 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
     Copies coded domain values (RPtType/RPtType2/RPtType3) by mapping source label -> code,
     matched by centroid XY. Uses sym_name as the primary label for RPtType (like your original).
     """
-    src = _ds_path(points_to_copy)
+    src = points_to_copy
     tgt = _ds_path(points_to_update)
 
     arcpy.AddMessage("3.3 Starting domain copy process...")
@@ -404,7 +505,10 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
 
     with arcpy.da.SearchCursor(src, read_fields) as cur:
         for row in cur:
-            geom = row[idx["SHAPE@"]].projectAs(tgt_sr)
+            geom = row[idx["SHAPE@"]]
+            if geom is None or geom.pointCount == 0:
+                continue
+            geom = geom.projectAs(tgt_sr)
             key = _pt_key(geom, decimals=3)
 
             sym = row[idx[primary_label_field]] if primary_label_field in idx else None
@@ -438,6 +542,9 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
     with arcpy.da.Editor(workspace):
         with arcpy.da.UpdateCursor(tgt, ["SHAPE@"] + update_fields) as cur:
             for row in cur:
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
                 key = _pt_key(row[0], decimals=3)
                 if key not in source_data:
                     skipped += 1
@@ -447,21 +554,24 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
                 for i, field in enumerate(update_fields):
                     # Force CritWork to null
                     if field == "CritWork":
-                        row[i + 1] = None
-                        changed = True
+                        if row[i + 1] is not None:
+                            row[i + 1] = None
+                            changed = True
                         continue
 
                     if field == "ProtValue":
-                        row[i + 1] = None
-                        changed = True
+                        if row[i + 1] is not None:
+                            row[i + 1] = None
+                            changed = True
                         continue
 
                     label = source_data[key].get(field)
 
                     # Default Source if missing
                     if field == "Source" and not label:
-                        row[i + 1] = SOURCE_NON_CORRECTED_GROUND_GPS
-                        changed = True
+                        if row[i + 1] != SOURCE_NON_CORRECTED_GROUND_GPS:
+                            row[i + 1] = SOURCE_NON_CORRECTED_GROUND_GPS
+                            changed = True
                         continue
 
                     if not label:
@@ -477,9 +587,9 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
                         skipped += 1
                         continue
 
-                    row[i + 1] = mapped
-                    changed = True
-
+                    if row[i + 1] != mapped:
+                        row[i + 1] = mapped
+                        changed = True
                 if changed:
                     cur.updateRow(row)
                     updated += 1
@@ -493,13 +603,15 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
 # 3.4 UPDATE BASIC FIELDS - POINTS
 #############################################################################################
 
-def update_basic_fields_points(points_to_update, fire_number, fire_name, status, nrs_district):
+def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fire_name, status, nrs_district):
     """
     Update Fire_Num / Fire_Name / Status on target points.
     Only fills blanks (and treats RehabRequiresFieldVerification as blank for Status).
     """
+    src = points_to_copy
     tgt = _ds_path(points_to_update)
     workspace = _workspace_from_dataset(points_to_update)
+    tgt_sr = arcpy.Describe(tgt).spatialReference
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
     required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]
@@ -508,48 +620,69 @@ def update_basic_fields_points(points_to_update, fire_number, fire_name, status,
         arcpy.AddWarning(f"3.4 Target missing fields {missing}. Skipping 3.4.")
         return 0
 
+    source_keys = set()
+
+    with arcpy.da.SearchCursor(src, ["SHAPE@"]) as cur:
+        for (geom,) in cur:
+            if geom is None or geom.pointCount == 0:
+                continue
+            geom = geom.projectAs(tgt_sr)
+            source_keys.add(_pt_key(geom, decimals=3))
+
     updated = 0
     with arcpy.da.Editor(workspace):
-        with arcpy.da.UpdateCursor(tgt, ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
             for row in cur:
+                geom = row[0]
+                if geom is None or geom.pointCount == 0:
+                    continue
+                key = _pt_key(geom, decimals=3)
+                if key not in source_keys:
+                    continue
                 changed = False
 
-                if row[0] is None or row[0] == "":
-                    row[0] = str(fire_number)
-                    changed = True
-
                 if row[1] is None or row[1] == "":
-                    row[1] = str(fire_name)
+                    row[1] = str(fire_number)
                     changed = True
 
-                if row[2] is None or row[2] == "" or row[2] == "RehabRequiresFieldVerification":
-                    row[2] = str(status)
+                if row[2] is None or row[2] == "":
+                    row[2] = str(fire_name)
                     changed = True
 
-                # Source default
-                if row[3] is None or row[3] == "" or row[3] == SOURCE_UNKNOWN:
-                    row[3] = SOURCE_NON_CORRECTED_GROUND_GPS
+                if (
+                    row[3] is None
+                    or row[3] == ""
+                    or row[3] == "RehabRequiresFieldVerification"
+                ):
+                    row[3] = str(status)
                     changed = True
 
-                # CritWork default
-                if row[4] == "":
-                    row[4] = None
+                if row[4] is None or row[4] == "" or row[4] == SOURCE_UNKNOWN:
+                    row[4] = SOURCE_NON_CORRECTED_GROUND_GPS
                     changed = True
 
-                # ProtValue default
                 if row[5] == "":
                     row[5] = None
                     changed = True
 
-                # NaturalResourceDistrict - overwrites existing values
-                if nrs_district and row[6] is None or row[6] == "":
-                    mapped_district = NRS_DISTRICT_CODES.get(nrs_district.upper())
+                if row[6] == "":
+                    row[6] = None
+                    changed = True
+
+                if nrs_district and (row[7] is None or row[7] == ""):
+
+                    mapped_district = NRS_DISTRICT_CODES.get(
+                        nrs_district.upper()
+                    )
 
                     if mapped_district is not None:
-                        row[6] = mapped_district
+                        row[7] = mapped_district
                         changed = True
                     else:
-                        arcpy.AddWarning(f"Unknown NRS district code: {nrs_district}")
+                        arcpy.AddWarning(
+                            f"Unknown NRS district code: {nrs_district}"
+                        )
+
                 if changed:
                     cur.updateRow(row)
                     updated += 1
@@ -571,7 +704,8 @@ if __name__ == "__main__":
     status = arcpy.GetParameterAsText(4)
     nrs_district = arcpy.GetParameterAsText(5)
 
+    retire_null_geometry_points(points_to_update)
     copy_points(points_to_copy, points_to_update)
     copy_attributes_based_on_location_points(points_to_copy, points_to_update)
     copy_domain_values_based_on_location_points(points_to_copy, points_to_update)
-    update_basic_fields_points(points_to_update, fire_number, fire_name, status, nrs_district)
+    update_basic_fields_points(points_to_copy, points_to_update, fire_number, fire_name, status, nrs_district)

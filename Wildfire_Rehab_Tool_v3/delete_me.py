@@ -409,15 +409,20 @@ def copy_domain_values_based_on_location_points(points_to_copy, points_to_update
 
             sym = row[idx[primary_label_field]] if primary_label_field in idx else None
 
-            def get_label(field):
+            def get_label(field, allow_fallback=False):
                 if field in idx:
                     v = row[idx[field]]
                     if v is not None and str(v).strip():
                         return str(v).strip()
-                return sym  # fallback
+
+                if allow_fallback:
+                    return sym
+
+                return None
+
 
             source_data[key] = {
-                "RPtType": sym,
+                "RPtType": get_label("RPtType", allow_fallback=True),
                 "RPtType2": get_label("RPtType2"),
                 "RPtType3": get_label("RPtType3"),
                 "Source": row[idx["Source"]] if "Source" in idx else None,
