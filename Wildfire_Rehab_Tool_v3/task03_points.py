@@ -58,9 +58,22 @@ def _workspace_from_dataset(dataset_or_layer) -> str:
     except Exception:
         return os.path.dirname(str(dataset_or_layer))
 
+#def _ds_path(dataset_or_layer) -> str:
+#    """Get catalog path from either a layer object or a dataset path string."""
+#    return dataset_or_layer.dataSource if hasattr(dataset_or_layer, "dataSource") else str(dataset_or_layer)
 def _ds_path(dataset_or_layer) -> str:
-    """Get catalog path from either a layer object or a dataset path string."""
-    return dataset_or_layer.dataSource if hasattr(dataset_or_layer, "dataSource") else str(dataset_or_layer)
+    """
+    Return the underlying catalog path for a layer or dataset.
+    """
+    try:
+        desc = arcpy.Describe(dataset_or_layer)
+        if hasattr(desc, "catalogPath") and desc.catalogPath:
+            return desc.catalogPath
+    except Exception:
+        pass
+    if hasattr(dataset_or_layer, "dataSource"):
+        return dataset_or_layer.dataSource
+    return str(dataset_or_layer)
 
 def _shape_type(dataset_path: str) -> str:
     return arcpy.Describe(dataset_path).shapeType
@@ -111,7 +124,10 @@ def retire_null_geometry_points(points_to_update):
     """
     Find target point records with null/empty geometry and set Status = 'Retired'.
     """
-    tgt = _ds_path(points_to_update)
+    tgt = points_to_update  #_ds_path(points_to_update)
+    arcpy.AddMessage(f"3.0 Target dataset: {tgt}")
+    if not arcpy.Exists(tgt):
+        raise ValueError(f"3.0 Target dataset could not be resolved: {tgt}")
     workspace = _workspace_from_dataset(points_to_update)
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
@@ -614,7 +630,12 @@ def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fi
     tgt_sr = arcpy.Describe(tgt).spatialReference
 
     tgt_fields = [f.name for f in arcpy.ListFields(tgt)]
-    required = ["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]
+    required = [
+    "Fire_Num",
+    "Fire_Name",
+    "Status",
+    "NaturalResourceDistrict"
+    ]                           #["Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]
     missing = [f for f in required if f not in tgt_fields]
     if missing:
         arcpy.AddWarning(f"3.4 Target missing fields {missing}. Skipping 3.4.")
@@ -631,7 +652,7 @@ def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fi
 
     updated = 0
     with arcpy.da.Editor(workspace):
-        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Fire_Num", "Fire_Name", "Status", "Source", "CritWork", "ProtValue", "NaturalResourceDistrict"]) as cur:
+        with arcpy.da.UpdateCursor(tgt, ["SHAPE@", "Fire_Num", "Fire_Name", "Status", "NaturalResourceDistrict"]) as cur:
             for row in cur:
                 geom = row[0]
                 if geom is None or geom.pointCount == 0:
@@ -641,14 +662,17 @@ def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fi
                     continue
                 changed = False
 
+                # Fire Number
                 if row[1] is None or row[1] == "":
                     row[1] = str(fire_number)
                     changed = True
 
+                # Fire Name
                 if row[2] is None or row[2] == "":
                     row[2] = str(fire_name)
                     changed = True
 
+                # Status
                 if (
                     row[3] is None
                     or row[3] == ""
@@ -657,26 +681,14 @@ def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fi
                     row[3] = str(status)
                     changed = True
 
-                if row[4] is None or row[4] == "" or row[4] == SOURCE_UNKNOWN:
-                    row[4] = SOURCE_NON_CORRECTED_GROUND_GPS
-                    changed = True
-
-                if row[5] == "":
-                    row[5] = None
-                    changed = True
-
-                if row[6] == "":
-                    row[6] = None
-                    changed = True
-
-                if nrs_district and (row[7] is None or row[7] == ""):
-
+                # Natural Resource District
+                if nrs_district and (row[4] is None or row[4] == ""):
                     mapped_district = NRS_DISTRICT_CODES.get(
                         nrs_district.upper()
                     )
 
                     if mapped_district is not None:
-                        row[7] = mapped_district
+                        row[4] = mapped_district
                         changed = True
                     else:
                         arcpy.AddWarning(
