@@ -682,7 +682,8 @@ def update_basic_fields_points(points_to_copy, points_to_update, fire_number, fi
                     changed = True
 
                 # Natural Resource District
-                if nrs_district and (row[4] is None or row[4] == ""):
+                #if nrs_district and (row[4] is None or row[4] == ""):
+                if nrs_district and row[4] in (None, "", 0, "0"):
                     mapped_district = NRS_DISTRICT_CODES.get(
                         nrs_district.upper()
                     )

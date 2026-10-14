@@ -725,7 +725,7 @@ def update_basic_fields_lines(lines_to_copy, lines_to_update, fire_number, fire_
                     changed = True
 
                 # NaturalResourceDistrict - overwrites existing values
-                if nrs_district and row[7] is None or row[7] == "":
+                if nrs_district and row[7] in (None, "", 0, "0"):
                     mapped_district = NRS_DISTRICT_CODES.get(nrs_district.upper())
 
                     if mapped_district is not None:
